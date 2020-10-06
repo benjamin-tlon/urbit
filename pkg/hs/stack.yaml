@@ -6,8 +6,10 @@ packages:
   - urbit-atom
   - urbit-azimuth
   - urbit-king
+  - urbit-moon
   - urbit-uruk
   - urbit-skew-reference
+  - urbit-lazy-skew-reference
   - urbit-uruk-rts
 
 extra-deps:
