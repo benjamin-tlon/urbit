@@ -1,0 +1,20 @@
+- Interpreter
+- Parsing
+- Type Checking
+- Better Syntax
+- Pretty Printing
+- Chez Scheme Code Generator
+ - VEC         -> vector
+ - WOR 0       -> empty list
+ - WOR 1       -> boolean
+ - DAT [[]]    -> empty list
+ - DAT [[]]    -> empty list
+ - DAT [[_,_]] -> cons cell
+ - DAT [xs]    -> vector
+ - WOR _       -> number -- operations explicitly wrap
+ - BUF 0       -> empty list
+ - BUF (n*8)   -> bytevector
+ - BUF n       -> VEC (WOR n)
+ - ...
+ - Chez has fixnums and fixnum-vectors, but they don't have static
+   guarentees about size. Seems to be 64-bit signed integers on my machine.
