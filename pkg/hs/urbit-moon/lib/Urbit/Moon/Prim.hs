@@ -50,13 +50,13 @@ data Op a
   | VEC_MAP a a
   | VEC_CAT a a
 
-  | WOR_BIT_NOT  Nat a
-  | WOR_BIT_OR   Nat a a
-  | WOR_BIT_AND  Nat a a
-  | WOR_BIT_NAND Nat a a
-  | WOR_BIT_NOR  Nat a a
-  | WOR_BIT_XOR  Nat a a
-  | WOR_BIT_XNOR Nat a a
+  | WOR_NOT  Nat a
+  | WOR_OR   Nat a a
+  | WOR_AND  Nat a a
+  | WOR_NAND Nat a a
+  | WOR_NOR  Nat a a
+  | WOR_XOR  Nat a a
+  | WOR_XNOR Nat a a
 
   | WOR_NAT_LIT Nat Nat
   | WOR_NAT_MAK Nat a a
@@ -142,15 +142,15 @@ instance Show a => Show (Op a) where
     VEC_MAP x l   -> prim "VEC_MAP" [x,l]
     VEC_CAT x y   -> prim "VEC_CAT" [x,y]
 
-    WOR_BIT_NOT  n x   -> sizPrim "WOR_BIT_NOT"  n [x]
-    WOR_BIT_OR   n x y -> sizPrim "WOR_BIT_OR"   n [x,y]
-    WOR_BIT_AND  n x y -> sizPrim "WOR_BIT_AND"  n [x,y]
-    WOR_BIT_NAND n x y -> sizPrim "WOR_BIT_NAND" n [x,y]
-    WOR_BIT_NOR  n x y -> sizPrim "WOR_BIT_NOR"  n [x,y]
-    WOR_BIT_XOR  n x y -> sizPrim "WOR_BIT_XOR"  n [x,y]
-    WOR_BIT_XNOR n x y -> sizPrim "WOR_BIT_XNOR" n [x,y]
+    WOR_NOT  n x   -> sizPrim "WOR_NOT"  n [x]
+    WOR_OR   n x y -> sizPrim "WOR_OR"   n [x,y]
+    WOR_AND  n x y -> sizPrim "WOR_AND"  n [x,y]
+    WOR_NAND n x y -> sizPrim "WOR_NAND" n [x,y]
+    WOR_NOR  n x y -> sizPrim "WOR_NOR"  n [x,y]
+    WOR_XOR  n x y -> sizPrim "WOR_XOR"  n [x,y]
+    WOR_XNOR n x y -> sizPrim "WOR_XNOR" n [x,y]
 
-    WOR_NAT_LIT n v   -> show v <> "w" <> show (siz n)
+    WOR_NAT_LIT n v   -> show v <> "w" <> show n
     WOR_NAT_MAK n x y -> sizPrim "WOR_NAT_MAK" n [x,y]
     WOR_NAT_NAT n x   -> sizPrim "WOR_NAT_NAT" n [x]
     WOR_NAT_ZER n x   -> sizPrim "WOR_NAT_ZER" n [x]
@@ -159,7 +159,7 @@ instance Show a => Show (Op a) where
     WOR_NAT_SUB n x y -> sizPrim "WOR_NAT_SUB" n [x,y]
     WOR_NAT_MUL n x y -> sizPrim "WOR_NAT_MUL" n [x,y]
 
-    WOR_INT_LIT n v   -> showIntLit v <> "w" <> show (siz n)
+    WOR_INT_LIT n v   -> showIntLit v <> "w" <> show n
     WOR_INT_MAK n x y -> sizPrim "WOR_INT_MAK" n [x,y]
     WOR_INT_INT n x   -> sizPrim "WOR_INT_INT" n [x]
     WOR_INT_ZER n x   -> sizPrim "WOR_INT_ZER" n [x]
@@ -170,7 +170,7 @@ instance Show a => Show (Op a) where
     WOR_INT_MUL n x y -> sizPrim "WOR_INT_MUL" n [x,y]
 
     BUF_STR s       -> "\"" <> unpack s <> "\""
-    BUF_LIT n vs    -> "#w" <> show (siz n) <> brakStr (show <$> vs)
+    BUF_LIT n vs    -> "#w" <> show n <> brakStr (show <$> vs)
     BUF_GEN n x l   -> sizPrim "BUF_GEN" n [x,l]
     BUF_IDX n x i   -> sizPrim "BUF_IDX" n [x,i]
     BUF_SET n x i v -> sizPrim "BUF_SET" n [x,i,v]
@@ -187,10 +187,6 @@ showIntLit :: Integer -> String
 showIntLit i | i >= 0 = "+" <> show i
 showIntLit i          = show i
 
-siz :: Nat -> Nat
-siz 0 = 0
-siz n = 2^(n-1)
-
 brakStr :: [String] -> String
 brakStr xs = "[" <> intercalate " " xs <> "]"
 
@@ -198,7 +194,7 @@ brak :: Show a => [a] -> String
 brak xs = brakStr (show <$> xs)
 
 sizPrim :: Show a => String -> Nat -> [a] -> String
-sizPrim nm n xs = prim (nm <> "_W" <> show (siz n)) xs
+sizPrim nm n xs = prim (nm <> "_W" <> show n) xs
 
 prim :: Show a => String -> [a] -> String
 prim nm [] = nm

@@ -7,29 +7,28 @@ import ClassyPrelude
 import Urbit.Moon.AST
 import Urbit.Moon.Exp
 
-import Data.List (elemIndex, (!!))
+import Control.Lens (view, _1, _2, _3)
+import Data.List    (elemIndex, (!!))
 
 
 -- Utils -----------------------------------------------------------------------
 
-let_ :: Eq a => [(a,Exp a)] -> Exp a -> Exp a
-let_ [] b = b
-let_ bs b = Let (map (abstr . snd) bs) (abstr b)
-  where abstr = abstract (`elemIndex` map fst bs)
+mkLet :: Eq a => [(a,Exp a,Exp a)] -> Exp a -> Exp a
+mkLet [] b = b
+mkLet bs b =
+  Let (bs <&> abstr . view _2)
+      (bs <&> abstr . view _3)
+      (abstr b)
+ where
+  abstr = abstract (`elemIndex` map (view _1) bs)
 
 letBinds :: [Bind] -> AST -> Exp Text
-letBinds bs ast = let_ (bs <&> \(Bind n x) -> (n, bind x)) (bind ast)
-
-bindPat :: Pat -> (Nat, Scope Int Exp Text)
-bindPat (MkPat vs x) =
-  (,) (fromIntegral $ length vs)
-      (abstract (`elemIndex` vs) $ bind x)
-
-allVars :: [Text]
-allVars = ((singleton <$> ['a'..'z']) <> go 2)
+letBinds bs ast = mkLet (goBinder <$> bs) (bind ast)
  where
-  go :: Integer -> [Text]
-  go n = (map (pack . (: show n)) ['a'..'z']) <> go (succ n)
+  goBinder (Bind n t x) = (n, bind t, bind x)
+
+mapTup :: (a -> c) -> (b -> d) -> (a,b) -> (c,d)
+mapTup f g (x,y) = (f x, g y)
 
 
 -- Bind Names ------------------------------------------------------------------
@@ -43,9 +42,22 @@ bind = go
     SEQ x y            -> Seq (go x) (go y)
     LAM v b            -> Lam (abstract1 v (go b))
     LET bs x           -> letBinds bs x
-    CON (MkCon l xs r) -> Con l (go <$> xs) r
-    PAT x pats         -> Pat (go x) (bindPat <$> pats)
+    CON t n xs         -> Con (go t) n (go <$> xs)
+    PAT t x pats       -> Pat (go t) (go x) (goPat <$> pats)
+    TYP x              -> Typ x
+    NAT                -> Nat
+    INT                -> Int
+    DAT vs             -> Dat (fmap go <$> vs)
+    VEC x              -> Vec (go x)
+    WOR n              -> Wor n
+    BUF n              -> Buf n
+    FUN n t v          -> Fun (go t) (abstract1 n (go v))
     OPR o              -> Opr (go <$> o)
+
+  goPat :: Pat -> (Int, Scope Int Exp Text)
+  goPat (MkPat vs x) = mapTup (fromIntegral . length)
+                              (abstract (`elemIndex` vs) . bind)
+                              (vs, x)
 
 
 -- Reconstruct AST -------------------------------------------------------------
@@ -53,29 +65,58 @@ bind = go
 unbind :: Exp Text -> AST
 unbind = go allVars id
  where
-  go :: [Text] -> (a -> Text) -> Exp a -> AST
-  go vars f = \case
-    Lam b      -> LAM v $ go vs f' $ fromScope b
-    Var x      -> VAR (f x)
-    App x y    -> APP (go vars f x) (go vars f y)
-    Seq x y    -> SEQ (go vars f x) (go vars f y)
-    Let x b    -> LET (unbindBinds x) $ go (vsN (length x)) fi $ fromScope b
-    Con l xs r -> CON (MkCon l (go vars f <$> xs) r)
-    Pat x bs   -> PAT (go vars f x) (unbindPat <$> bs)
-    Opr o      -> OPR (go vars f <$> o)
-
+  allVars :: [Text]
+  allVars = ((singleton <$> ['a'..'z']) <> gogo 2)
    where
-    unbindPat (n, sc) =
+    gogo :: Integer -> [Text]
+    gogo n = (map (pack . (: show n)) ['a'..'z']) <> gogo (succ n)
+
+  go :: ∀a. [Text] -> (a -> Text) -> Exp a -> AST
+  go vars f = \case
+    Lam b      -> LAM v (recurIn b)
+    Var x      -> VAR (f x)
+    App x y    -> APP (recur x) (recur y)
+    Seq x y    -> SEQ (recur x) (recur y)
+    Nat        -> NAT
+    Int        -> INT
+    Typ n      -> TYP n
+    Wor n      -> WOR n
+    Buf n      -> BUF n
+    Dat ds     -> DAT (fmap recur <$> ds)
+    Vec x      -> VEC (recur x)
+    Fun t b    -> FUN v (recur t) (recurIn b)
+    Let t x b  -> LET (goBinds t x) $ go (vsN (length x)) fi $ fromScope b
+    Con t n xs -> CON (recur t) n (recur <$> xs)
+    Pat t x bs -> PAT (recur t) (recur x) (goPat <$> bs)
+    Opr o      -> OPR (recur <$> o)
+   where
+    recur :: Exp a -> AST
+    recur = go vars f
+
+    recurIn :: Scope () Exp a -> AST
+    recurIn = go vs f' . fromScope
+
+    goPat :: (Int, Scope Int Exp a) -> Pat
+    goPat (n, sc) =
       let ni = fromIntegral n
       in MkPat (take ni vars)
                (go (vsN ni) fi (fromScope sc))
 
-    unbindBind i = Bind (vars !! i) . go vars fi . fromScope
-    unbindBinds  = zipWith unbindBind [0..]
+    goBind :: Int -> Scope Int Exp a -> Scope Int Exp a -> Bind
+    goBind i typ val = Bind (vars !! i)
+                            (go (vsN i) fi $ fromScope typ)
+                            (go (vsN i) fi $ fromScope val)
+
+    goBinds :: [Scope Int Exp a] -> [Scope Int Exp a] -> [Bind]
+    goBinds = zipWith3 goBind [0..]
 
     v:vs = vars
-    fi   = \case { F fv -> f fv; B i  -> vars !! i }
-    f'   = \case { F fv -> f fv; B () -> v }
+
+    fi :: Var Int a -> Text
+    fi = \case { F fv -> f fv; B i  -> vars !! i }
+
+    f' :: Var () a -> Text
+    f' = \case { F fv -> f fv; B () -> v }
 
     vsN :: Int -> [Text]
     vsN n = drop n vars

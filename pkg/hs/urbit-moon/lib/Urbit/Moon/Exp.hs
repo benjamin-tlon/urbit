@@ -11,16 +11,52 @@ import Data.Deriving (deriveEq1, deriveOrd1, deriveRead1, deriveShow1)
 
 type Nat = Natural
 
+type Typ = Exp
+
+{-
+  Lazy Dependant Lambda Calculus with `seq` and primitives.
+
+  Primitives:
+
+  - Dat: Structural ADTs
+  - Nat: Natural
+  - Int: Integer
+  - Vec: Array
+  - Wor: Words -- arrays of bits of a certain width.
+  - Buf: Packed Arrays of words.
+
+  - Note that Let supports recursive bindings.
+  - Note that the type of `Typ n` is `Typ (n+1)`.
+  - Note that functions take multiple arguments. This enables better
+    codegen to hoon/scheme/js.
+
+-}
 data Exp a
   = Var a
   | App (Exp a) (Exp a)
-  | Seq (Exp a) (Exp a)
   | Lam (Scope () Exp a)
-  | Let [Scope Int Exp a] (Scope Int Exp a)
-  | Con [Nat] [Exp a] [Nat]
-  | Pat (Exp a) [(Nat, Scope Int Exp a)]
-  | Opr (Op (Exp a))
+  | Seq (Exp a) (Exp a)
+  | Let [Scope Int Typ a] -- types
+        [Scope Int Exp a] -- values
+        (Scope Int Exp a) -- body
+
+  -- Types
+  | Typ Nat             -- Type of (Typ n) is (Typ (n+1))
+  | Fun (Typ a) (Scope () Exp a)
+  | Dat [[Typ a]]       -- Structural ADTs
+  | Nat                 -- Natural
+  | Int                 -- Integer
+  | Vec (Typ a)         -- Array
+  | Wor Nat             -- Word with bit-width n
+  | Buf Nat             -- Packed vector of words of bit-width n
+
+  | Con (Typ a) Nat [Exp a]                -- Construct ADT
+  | Pat (Typ a) (Exp a) [(Int, Scope Int Exp a)]  -- Pattern match on ADT
+  | Opr (Op (Exp a))                       -- Operations on primitives
  deriving (Functor, Foldable, Traversable)
+
+maybeTy :: Typ a
+maybeTy = Lam (Scope $ Dat [[], [Var (B ())]])
 
 
 -- Instances -------------------------------------------------------------------
@@ -43,9 +79,17 @@ instance Monad Exp where
 
   Var a     >>= f = f a
   Lam b     >>= f = Lam (b >>>= f)
-  Let x b   >>= f = Let (map (>>>= f) x) (b >>>= f)
+  Let t x b >>= f = Let ((>>>= f) <$> t) ((>>>= f) <$> x) (b >>>= f)
   App x y   >>= f = App (x >>= f) (y >>= f)
   Seq x y   >>= f = Seq (x >>= f) (y >>= f)
-  Con l x r >>= f = Con l (map (>>= f) x) r
-  Pat x p   >>= f = Pat (x >>= f) $ map (\(x,y) -> (x, y >>>= f)) p
+  Con t c x >>= f = Con (t >>= f) c ((>>= f) <$> x)
+  Pat t x p >>= f = Pat (t >>= f) (x >>= f) ((\(n,x) -> (n, x>>>=f)) <$> p)
   Opr x     >>= f = Opr ((>>= f) <$> x)
+  Typ x     >>= _ = Typ x
+  Fun x y   >>= f = Fun (x >>= f) (y >>>= f)
+  Dat x     >>= f = Dat (fmap (>>= f) <$> x)
+  Nat       >>= f = Nat
+  Int       >>= f = Int
+  Vec x     >>= f = Vec (x >>= f)
+  Wor n     >>= _ = Wor n
+  Buf n     >>= _ = Buf n
