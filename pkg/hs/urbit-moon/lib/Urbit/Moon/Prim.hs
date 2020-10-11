@@ -1,22 +1,19 @@
-{-# OPTIONS_GHC -Wall #-}
+{-# OPTIONS_GHC -Wall -Werror #-}
 
 module Urbit.Moon.Prim
   ( Op(..)
   ) where
 
-import Prelude ()
 import ClassyPrelude
-import GHC.Natural
 
 import Data.Deriving (deriveEq1, deriveOrd1, deriveRead1, deriveShow1)
+import Urbit.Runic   (Runic(..), ToRunic(..), appRune, runicShowWide)
+
 
 -- Types -----------------------------------------------------------------------
 
-type Nat = Natural
-
 data Op a
-  = NAT_LIT Natural
-  | NAT_INT a
+  = NAT_INT a
   | NAT_RUN a a a
   | NAT_ZER a
   | NAT_INC a
@@ -28,7 +25,6 @@ data Op a
   | NAT_SUB a a
   | NAT_MOD a a
 
-  | INT_LIT Integer
   | INT_NAT a
   | INT_ZER a
   | INT_INC a
@@ -41,7 +37,7 @@ data Op a
   | INT_SUB a a
   | INT_MOD a a
 
-  | VEC_LIT [a]
+  | VEC_FROM_LIST a
   | VEC_GEN a a
   | VEC_IDX a a
   | VEC_SET a a a
@@ -50,44 +46,41 @@ data Op a
   | VEC_MAP a a
   | VEC_CAT a a
 
-  | WOR_NOT  Nat a
-  | WOR_OR   Nat a a
-  | WOR_AND  Nat a a
-  | WOR_NAND Nat a a
-  | WOR_NOR  Nat a a
-  | WOR_XOR  Nat a a
-  | WOR_XNOR Nat a a
+  | WOR_NOT  a a
+  | WOR_OR   a a a
+  | WOR_AND  a a a
+  | WOR_NAND a a a
+  | WOR_NOR  a a a
+  | WOR_XOR  a a a
+  | WOR_XNOR a a a
 
-  | WOR_NAT_LIT Nat Nat
-  | WOR_NAT_MAK Nat a a
-  | WOR_NAT_NAT Nat a
-  | WOR_NAT_ZER Nat a
-  | WOR_NAT_INC Nat a
-  | WOR_NAT_DEC Nat a
-  | WOR_NAT_SUB Nat a a
-  | WOR_NAT_MUL Nat a a
+  | WOR_NAT_FROM_NAT a a a
+  | WOR_NAT_TO_NAT a a
+  | WOR_NAT_ZER a a
+  | WOR_NAT_INC a a
+  | WOR_NAT_DEC a a
+  | WOR_NAT_SUB a a a
+  | WOR_NAT_MUL a a a
 
-  | WOR_INT_LIT Nat Integer
-  | WOR_INT_MAK Nat a a
-  | WOR_INT_INT Nat a
-  | WOR_INT_ZER Nat a
-  | WOR_INT_NEG Nat a
-  | WOR_INT_INC Nat a
-  | WOR_INT_DEC Nat a
-  | WOR_INT_SUB Nat a a
-  | WOR_INT_MUL Nat a a
+  | WOR_INT_MAK a a a
+  | WOR_INT_INT a a
+  | WOR_INT_ZER a a
+  | WOR_INT_NEG a a
+  | WOR_INT_INC a a
+  | WOR_INT_DEC a a
+  | WOR_INT_SUB a a a
+  | WOR_INT_MUL a a a
 
-  | BUF_STR Text
-  | BUF_LIT Nat [Natural]
-  | BUF_GEN Nat a a
-  | BUF_IDX Nat a a
-  | BUF_SET Nat a a a
-  | BUF_UPD Nat a a a
-  | BUF_LIS Nat a
-  | BUF_MAP Nat a a
-  | BUF_ITR Nat a a
-  | BUF_CAT Nat a a
+  | BUF_GEN a a a
+  | BUF_IDX a a a
+  | BUF_SET a a a a
+  | BUF_UPD a a a a
+  | BUF_LIS a a
+  | BUF_MAP a a a
+  | BUF_ITR a a a
+  | BUF_CAT a a a
  deriving (Eq, Ord, Functor, Foldable, Traversable)
+
 
 -- Instances -------------------------------------------------------------------
 
@@ -96,106 +89,72 @@ deriveOrd1  ''Op
 deriveRead1 ''Op
 deriveShow1 ''Op
 
-instance Num (Op a) where
-    fromInteger = NAT_LIT . fromIntegral
-    (+)    = error "Fake Num instance for `Exp`"
-    (-)    = error "Fake Num instance for `Exp`"
-    (*)    = error "Fake Num instance for `Exp`"
-    abs    = error "Fake Num instance for `Exp`"
-    signum = error "Fake Num instance for `Exp`"
-    negate = error "Fake Num instance for `Exp`"
+instance (ToRunic a, Show a) => Show (Op a) where
+  show = unpack . runicShowWide
 
-instance Show a => Show (Op a) where
-  show = \case
-    NAT_LIT n      -> show n
-    NAT_INT x      -> prim "NAT_INT" [x]
-    NAT_RUN x z li -> prim "NAT_RUN" [x,z,li]
-    NAT_ZER x      -> prim "NAT_ZER" [x]
-    NAT_INC x      -> prim "NAT_INC" [x]
-    NAT_DEC x      -> prim "NAT_DEC" [x]
-    NAT_EQL x y    -> prim "NAT_EQL" [x,y]
-    NAT_MUL x y    -> prim "NAT_MUL" [x,y]
-    NAT_DIV x y    -> prim "NAT_DIV" [x,y]
-    NAT_ADD x y    -> prim "NAT_ADD" [x,y]
-    NAT_SUB x y    -> prim "NAT_SUB" [x,y]
-    NAT_MOD x y    -> prim "NAT_MOD" [x,y]
+primRune :: ToRunic a => Text -> [a] -> Runic
+primRune t xs = appRune (Leaf t : fmap toRunic xs)
 
-    INT_LIT i   -> showIntLit i
-    INT_NAT x   -> prim "INT_NAT" [x]
-    INT_ZER x   -> prim "INT_ZER" [x]
-    INT_INC x   -> prim "INT_INC" [x]
-    INT_DEC x   -> prim "INT_DEC" [x]
-    INT_NEG x   -> prim "INT_NEG" [x]
-    INT_EQL x y -> prim "INT_EQL" [x,y]
-    INT_MUL x y -> prim "INT_MUL" [x,y]
-    INT_DIV x y -> prim "INT_DIV" [x,y]
-    INT_ADD x y -> prim "INT_ADD" [x,y]
-    INT_SUB x y -> prim "INT_SUB" [x,y]
-    INT_MOD x y -> prim "INT_MOD" [x,y]
-
-    VEC_LIT xs    -> "#" <> brak xs
-    VEC_GEN x l   -> prim "VEC_GEN" [x,l]
-    VEC_IDX x i   -> prim "VEC_IDX" [x,i]
-    VEC_SET x i v -> prim "VEC_SET" [x,i,v]
-    VEC_UPD x i f -> prim "VEC_UPD" [x,i,f]
-    VEC_LIS x     -> prim "VEC_LIS" [x]
-    VEC_MAP x l   -> prim "VEC_MAP" [x,l]
-    VEC_CAT x y   -> prim "VEC_CAT" [x,y]
-
-    WOR_NOT  n x   -> sizPrim "WOR_NOT"  n [x]
-    WOR_OR   n x y -> sizPrim "WOR_OR"   n [x,y]
-    WOR_AND  n x y -> sizPrim "WOR_AND"  n [x,y]
-    WOR_NAND n x y -> sizPrim "WOR_NAND" n [x,y]
-    WOR_NOR  n x y -> sizPrim "WOR_NOR"  n [x,y]
-    WOR_XOR  n x y -> sizPrim "WOR_XOR"  n [x,y]
-    WOR_XNOR n x y -> sizPrim "WOR_XNOR" n [x,y]
-
-    WOR_NAT_LIT n v   -> show v <> "w" <> show n
-    WOR_NAT_MAK n x y -> sizPrim "WOR_NAT_MAK" n [x,y]
-    WOR_NAT_NAT n x   -> sizPrim "WOR_NAT_NAT" n [x]
-    WOR_NAT_ZER n x   -> sizPrim "WOR_NAT_ZER" n [x]
-    WOR_NAT_INC n x   -> sizPrim "WOR_NAT_INC" n [x]
-    WOR_NAT_DEC n x   -> sizPrim "WOR_NAT_DEC" n [x]
-    WOR_NAT_SUB n x y -> sizPrim "WOR_NAT_SUB" n [x,y]
-    WOR_NAT_MUL n x y -> sizPrim "WOR_NAT_MUL" n [x,y]
-
-    WOR_INT_LIT n v   -> showIntLit v <> "w" <> show n
-    WOR_INT_MAK n x y -> sizPrim "WOR_INT_MAK" n [x,y]
-    WOR_INT_INT n x   -> sizPrim "WOR_INT_INT" n [x]
-    WOR_INT_ZER n x   -> sizPrim "WOR_INT_ZER" n [x]
-    WOR_INT_NEG n x   -> sizPrim "WOR_INT_NEG" n [x]
-    WOR_INT_INC n x   -> sizPrim "WOR_INT_INC" n [x]
-    WOR_INT_DEC n x   -> sizPrim "WOR_INT_DEC" n [x]
-    WOR_INT_SUB n x y -> sizPrim "WOR_INT_SUB" n [x,y]
-    WOR_INT_MUL n x y -> sizPrim "WOR_INT_MUL" n [x,y]
-
-    BUF_STR s       -> "\"" <> unpack s <> "\""
-    BUF_LIT n vs    -> "#w" <> show n <> brakStr (show <$> vs)
-    BUF_GEN n x l   -> sizPrim "BUF_GEN" n [x,l]
-    BUF_IDX n x i   -> sizPrim "BUF_IDX" n [x,i]
-    BUF_SET n x i v -> sizPrim "BUF_SET" n [x,i,v]
-    BUF_UPD n x i l -> sizPrim "BUF_UPD" n [x,i,l]
-    BUF_LIS n x     -> sizPrim "BUF_LIS" n [x]
-    BUF_MAP n x l   -> sizPrim "BUF_MAP" n [x,l]
-    BUF_ITR n x l   -> sizPrim "BUF_ITR" n [x,l]
-    BUF_CAT n x y   -> sizPrim "BUF_CAT" n [x,y]
-
-
--- Helpers ---------------------------------------------------------------------
-
-showIntLit :: Integer -> String
-showIntLit i | i >= 0 = "+" <> show i
-showIntLit i          = show i
-
-brakStr :: [String] -> String
-brakStr xs = "[" <> intercalate " " xs <> "]"
-
-brak :: Show a => [a] -> String
-brak xs = brakStr (show <$> xs)
-
-sizPrim :: Show a => String -> Nat -> [a] -> String
-sizPrim nm n xs = prim (nm <> "_W" <> show n) xs
-
-prim :: Show a => String -> [a] -> String
-prim nm [] = nm
-prim nm xs = "(" <> nm <> " " <> intercalate " " (show <$> xs) <> ")"
+--  TODO Use generic deriving?
+instance ToRunic a => ToRunic (Op a) where
+  toRunic = \case
+    NAT_INT x              -> primRune "NAT_INT" [x]
+    NAT_RUN x z li         -> primRune "NAT_RUN" [x,z,li]
+    NAT_ZER x              -> primRune "NAT_ZER" [x]
+    NAT_INC x              -> primRune "NAT_INC" [x]
+    NAT_DEC x              -> primRune "NAT_DEC" [x]
+    NAT_EQL x y            -> primRune "NAT_EQL" [x,y]
+    NAT_MUL x y            -> primRune "NAT_MUL" [x,y]
+    NAT_DIV x y            -> primRune "NAT_DIV" [x,y]
+    NAT_ADD x y            -> primRune "NAT_ADD" [x,y]
+    NAT_SUB x y            -> primRune "NAT_SUB" [x,y]
+    NAT_MOD x y            -> primRune "NAT_MOD" [x,y]
+    INT_NAT x              -> primRune "INT_NAT" [x]
+    INT_ZER x              -> primRune "INT_ZER" [x]
+    INT_INC x              -> primRune "INT_INC" [x]
+    INT_DEC x              -> primRune "INT_DEC" [x]
+    INT_NEG x              -> primRune "INT_NEG" [x]
+    INT_EQL x y            -> primRune "INT_EQL" [x,y]
+    INT_MUL x y            -> primRune "INT_MUL" [x,y]
+    INT_DIV x y            -> primRune "INT_DIV" [x,y]
+    INT_ADD x y            -> primRune "INT_ADD" [x,y]
+    INT_SUB x y            -> primRune "INT_SUB" [x,y]
+    INT_MOD x y            -> primRune "INT_MOD" [x,y]
+    VEC_FROM_LIST x        -> primRune "VEC_FROM_LIST" [x]
+    VEC_GEN x l            -> primRune "VEC_GEN" [x,l]
+    VEC_IDX x i            -> primRune "VEC_IDX" [x,i]
+    VEC_SET x i v          -> primRune "VEC_SET" [x,i,v]
+    VEC_UPD x i f          -> primRune "VEC_UPD" [x,i,f]
+    VEC_LIS x              -> primRune "VEC_LIS" [x]
+    VEC_MAP x l            -> primRune "VEC_MAP" [x,l]
+    VEC_CAT x y            -> primRune "VEC_CAT" [x,y]
+    WOR_NOT  n x           -> primRune "WOR_NOT"  [n,x]
+    WOR_OR   n x y         -> primRune "WOR_OR"   [n,x,y]
+    WOR_AND  n x y         -> primRune "WOR_AND"  [n,x,y]
+    WOR_NAND n x y         -> primRune "WOR_NAND" [n,x,y]
+    WOR_NOR  n x y         -> primRune "WOR_NOR"  [n,x,y]
+    WOR_XOR  n x y         -> primRune "WOR_XOR"  [n,x,y]
+    WOR_XNOR n x y         -> primRune "WOR_XNOR" [n,x,y]
+    WOR_NAT_FROM_NAT n x y -> primRune "WOR_NAT_FROM_NAT" [n,x,y]
+    WOR_NAT_TO_NAT n x     -> primRune "WOR_NAT_TO_NAT" [n,x]
+    WOR_NAT_ZER n x        -> primRune "WOR_NAT_ZER" [n,x]
+    WOR_NAT_INC n x        -> primRune "WOR_NAT_INC" [n,x]
+    WOR_NAT_DEC n x        -> primRune "WOR_NAT_DEC" [n,x]
+    WOR_NAT_SUB n x y      -> primRune "WOR_NAT_SUB" [n,x,y]
+    WOR_NAT_MUL n x y      -> primRune "WOR_NAT_MUL" [n,x,y]
+    WOR_INT_MAK n x y      -> primRune "WOR_INT_MAK" [n,x,y]
+    WOR_INT_INT n x        -> primRune "WOR_INT_INT" [n,x]
+    WOR_INT_ZER n x        -> primRune "WOR_INT_ZER" [n,x]
+    WOR_INT_NEG n x        -> primRune "WOR_INT_NEG" [n,x]
+    WOR_INT_INC n x        -> primRune "WOR_INT_INC" [n,x]
+    WOR_INT_DEC n x        -> primRune "WOR_INT_DEC" [n,x]
+    WOR_INT_SUB n x y      -> primRune "WOR_INT_SUB" [n,x,y]
+    WOR_INT_MUL n x y      -> primRune "WOR_INT_MUL" [n,x,y]
+    BUF_GEN n x l          -> primRune "BUF_GEN" [n,x,l]
+    BUF_IDX n x i          -> primRune "BUF_IDX" [n,x,i]
+    BUF_SET n x i v        -> primRune "BUF_SET" [n,x,i,v]
+    BUF_UPD n x i l        -> primRune "BUF_UPD" [n,x,i,l]
+    BUF_LIS n x            -> primRune "BUF_LIS" [n,x]
+    BUF_MAP n x l          -> primRune "BUF_MAP" [n,x,l]
+    BUF_ITR n x l          -> primRune "BUF_ITR" [n,x,l]
+    BUF_CAT n x y          -> primRune "BUF_CAT" [n,x,y]

@@ -306,6 +306,3 @@ toRunic = go
         _                        -> Leaf (n <> tshow x)
       where
         okay xs = not (null xs) && all (`elem` ('-':['a'..'z'])) xs
-
-env v = error ("error: free variable: " <> show v)
-

@@ -1,10 +1,12 @@
 module Urbit.Moon.Exp where
 
 import Urbit.Moon.Prim (Op(..))
+import Urbit.Moon.Lit (Literal(..))
 import Bound
 import Numeric.Natural
 import ClassyPrelude
-import Data.Deriving (deriveEq1, deriveOrd1, deriveRead1, deriveShow1)
+import Data.Deriving (deriveEq1, deriveOrd1)
+import Control.Lens (over, _2)
 
 
 -- Types -----------------------------------------------------------------------
@@ -51,8 +53,9 @@ data Exp a
   | Buf Nat             -- Packed vector of words of bit-width n
 
   | Con (Typ a) Nat [Exp a]                -- Construct ADT
-  | Pat (Typ a) (Exp a) [(Int, Scope Int Exp a)]  -- Pattern match on ADT
+  | Pat (Exp a) (Typ a) [(Int, Scope Int Exp a)] -- Pattern match on ADT
   | Opr (Op (Exp a))                       -- Operations on primitives
+  | Lit Literal
  deriving (Functor, Foldable, Traversable)
 
 maybeTy :: Typ a
@@ -63,12 +66,9 @@ maybeTy = Lam (Scope $ Dat [[], [Var (B ())]])
 
 deriveEq1   ''Exp
 deriveOrd1  ''Exp
-deriveRead1 ''Exp
-deriveShow1 ''Exp
 
 deriving instance Eq a => Eq (Exp a)
 deriving instance Ord a => Ord (Exp a)
-deriving instance Show a => Show (Exp a)
 
 instance Applicative Exp where
   pure = Var
@@ -83,8 +83,9 @@ instance Monad Exp where
   App x y   >>= f = App (x >>= f) (y >>= f)
   Seq x y   >>= f = Seq (x >>= f) (y >>= f)
   Con t c x >>= f = Con (t >>= f) c ((>>= f) <$> x)
-  Pat t x p >>= f = Pat (t >>= f) (x >>= f) ((\(n,x) -> (n, x>>>=f)) <$> p)
+  Pat v t p >>= f = Pat (v >>= f) (t >>= f) (over _2 (>>>= f) <$> p)
   Opr x     >>= f = Opr ((>>= f) <$> x)
+  Lit l     >>= _ = Lit l
   Typ x     >>= _ = Typ x
   Fun x y   >>= f = Fun (x >>= f) (y >>>= f)
   Dat x     >>= f = Dat (fmap (>>= f) <$> x)

@@ -7,7 +7,7 @@ import ClassyPrelude
 import Urbit.Moon.AST
 import Urbit.Moon.Exp
 
-import Control.Lens (view, _1, _2, _3)
+import Control.Lens (view, over, _1, _2, _3)
 import Data.List    (elemIndex, (!!))
 
 
@@ -43,7 +43,7 @@ bind = go
     LAM v b            -> Lam (abstract1 v (go b))
     LET bs x           -> letBinds bs x
     CON t n xs         -> Con (go t) n (go <$> xs)
-    PAT t x pats       -> Pat (go t) (go x) (goPat <$> pats)
+    PAT t x pats       -> Pat (go $ VAR t) (go x) (goPat <$> pats)
     TYP x              -> Typ x
     NAT                -> Nat
     INT                -> Int
@@ -53,6 +53,7 @@ bind = go
     BUF n              -> Buf n
     FUN n t v          -> Fun (go t) (abstract1 n (go v))
     OPR o              -> Opr (go <$> o)
+    LIT l              -> Lit l
 
   goPat :: Pat -> (Int, Scope Int Exp Text)
   goPat (MkPat vs x) = mapTup (fromIntegral . length)
@@ -87,8 +88,15 @@ unbind = go allVars id
     Fun t b    -> FUN v (recur t) (recurIn b)
     Let t x b  -> LET (goBinds t x) $ go (vsN (length x)) fi $ fromScope b
     Con t n xs -> CON (recur t) n (recur <$> xs)
-    Pat t x bs -> PAT (recur t) (recur x) (goPat <$> bs)
+    Pat n t bs -> case n of Var a -> PAT (f a) (recur t) (goPat <$> bs)
+                            _     -> recur $ Let [abstract (const Nothing) t]
+                                                 [abstract (const Nothing) n]
+                                           $ Scope
+                                           $ Pat (Var (B 0)) (F . Var <$> t)
+                                           $ flip fmap bs
+                                           $ over _2 (fmap (F . Var))
     Opr o      -> OPR (recur <$> o)
+    Lit l      -> LIT l
    where
     recur :: Exp a -> AST
     recur = go vars f

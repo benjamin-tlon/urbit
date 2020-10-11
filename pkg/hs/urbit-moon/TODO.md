@@ -2,7 +2,6 @@
 - Parsing
 - Type Checking
 - Better Syntax
-- Pretty Printing
 - Chez Scheme Code Generator
  - VEC         -> vector
  - WOR 0       -> empty list
