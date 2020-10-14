@@ -21,6 +21,8 @@ data Runic
     | RunN Text [Runic]
     | Jog0 Text [(Runic, Runic)]
     | Jog1 Text Runic [(Runic, Runic)]
+    | Cor0 Text [(Runic, Runic)]
+    | Cor1 Text Runic [(Runic, Runic)]
     | IFix Text Text [Runic]
     | JFix Text Text [(Runic, Runic)]
     | Bind Text Runic
@@ -33,6 +35,9 @@ data Runic
 
 
 -- To Runic --------------------------------------------------------------------
+
+instance IsString Runic where
+ fromString = Leaf . pack
 
 class ToRunic a where
   toRunic ∷ a → Runic
@@ -59,6 +64,8 @@ wide = go
         Jog1 i x [] → i <> "(" <> go x <> ")"
         Jog1 i x xs → i <> "(" <> go x <> "; " <> bod <> ")"
           where bod = intercalate ", " $ xs <&> (\(h,t) → go h <> " " <> go t)
+        Cor0 i xs   → go (Jog0 i xs)
+        Cor1 i x xs → go (Jog1 i x xs)
         Wide x      → go x
         Pref t x    → t <> go x
         Tied x y    → go x <> go y
@@ -95,6 +102,13 @@ tall = go 0
           where bod = fromMaybe (jogTallBody d xs) (jogWideBody d xs)
                 hed = "  " <> wide x
 
+        Cor0 t xs → mconcat ([line d t] <> bod <> [line d "=="])
+          where bod = fromMaybe (corTallBody d xs) (corWideBody d xs)
+
+        Cor1 t x xs → mconcat ([line d (t<>hed)] <> bod <> [line d "=="])
+          where bod = fromMaybe (corTallBody d xs) (corWideBody d xs)
+                hed = "  " <> wide x
+
         Mode _ t → go d t
 
         IFix h t xs → line d $ wide $ IFix h t xs
@@ -120,6 +134,25 @@ tall = go 0
         pure $ unlines $ [muck b] <> bs <> [indent d "=="]
 
     jogTallBody d = fmap (\(h,t) → go (d+2) h <> go (d+4) t)
+
+    corTallBody d = fmap (\(h,t) → luslus (go d h) <> go (d+2) t)
+
+    luslus :: Text -> Text
+    luslus = unlines . fmap f . lines
+     where
+      f (T.span (== ' ') -> (ind, tex)) = ind <> "++  " <> tex
+
+    corWideBody ∷ Int → [(Runic, Runic)] → Maybe [Text]
+    corWideBody _ [] = Nothing
+    corWideBody d xs = do
+        let heads  = fst <$> xs
+            hedWid = maximumEx (length . wide <$> heads) :: Int
+        sequence $ xs <&> \(h,t) → do
+            let hed = "++  " <> wide h
+            let gap = T.replicate (6 + (hedWid - length hed)) " "
+            let lin = hed <> gap <> wide t
+            guard (length lin <= (53 - d))
+            pure (line d lin)
 
     jogWideBody ∷ Int → [(Runic, Runic)] → Maybe [Text]
     jogWideBody _ [] = Nothing
