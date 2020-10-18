@@ -29,8 +29,7 @@ data AST
   | LET [(Text, [Text], AST)] AST
   | CON [Int] Int [AST]
   | PAT AST [([Text], AST)]
-  | DEL AST
-  | FOR AST
+  | SEQ AST AST
   | LIT Atom
   | CAS AST [(Maybe Atom, AST)]
   | VEC [AST]
@@ -119,7 +118,7 @@ bindsEx =
   , (,,) "nil"   []            (CON [0,2] 0 [])
   , (,,) "cons"  ["x", "xs"]   (CON [0,2] 1 ["x", "xs"])
   , (,,) "null"  ["l"]         (PAT "l" [([], "true"), (["_","_"], "false")])
-  , (,,) "lazy"  ["l"]         (FOR $ DEL "l")
+  , (,,) "seq"   ["x", "y"]    (SEQ "x" "y")
   ]
 
 
@@ -154,8 +153,7 @@ astRune = go
                           (R.IFix "[" "]" (R.Leaf <$> v), go b)
     OPR o            -> R.toRunic o
     LIT l            -> R.Leaf (tshow l)
-    DEL x            -> R.IFix "~(" ")" [go x]
-    FOR x            -> R.IFix "!(" ")" [go x]
+    SEQ x y          -> R.IFix "!(" ")" [go x, go y]
     CAS x cs         -> R.Jog1 "?#" (go x) $ cs <&> \(v, b) ->
                           (fromMaybe "_" (R.toRunic <$> v), go b)
     VEC xs           -> R.Mode (R.IFix "#[" "]" (go <$> xs))

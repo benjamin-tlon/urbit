@@ -20,8 +20,7 @@ data Exp a
   | Let [Scope Int Exp a] (Scope Int Exp a)
   | Con [Int] Int [Exp a]
   | Pat (Exp a) [(Int, Scope Int Exp a)]
-  | Del (Exp a)
-  | For (Exp a)
+  | Seq (Exp a) (Exp a)
   | Lit Atom
   | Cas (Exp a) [(Maybe Atom, Exp a)]
   | Vec [Exp a]
@@ -53,6 +52,5 @@ instance Monad Exp where
   Opr x      >>= f = Opr ((>>= f) <$> x)
   Lit l      >>= _ = Lit l
   Vec xs     >>= f = Vec ((>>= f) <$> xs)
-  Del x      >>= f = Del (x >>= f)
-  For x      >>= f = For (x >>= f)
+  Seq x y    >>= f = Seq (x >>= f) (y >>= f)
   Cas x cs   >>= f = Cas (x >>= f) (over _2 (>>= f) <$> cs)

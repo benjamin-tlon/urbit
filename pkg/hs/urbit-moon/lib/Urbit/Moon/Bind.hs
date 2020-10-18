@@ -51,8 +51,7 @@ bind = go
                             )
     OPR o              -> Opr (go <$> o)
     LIT l              -> Lit l
-    DEL x              -> Del (go x)
-    FOR x              -> For (go x)
+    SEQ x y            -> Seq (go x) (go y)
     CAS x cs           -> Cas (go x) (over _2 go <$> cs)
     VEC xs             -> Vec (go <$> xs)
 
@@ -76,8 +75,7 @@ unbind = go allVars id
     Let ls b    -> LET (goBinds ls) (recurInN b)
     Con ns n xs -> CON ns n (recur <$> xs)
     Pat x bs    -> PAT (recur x) (goPat <$> bs)
-    Del x       -> DEL (recur x)
-    For x       -> FOR (recur x)
+    Seq x y     -> SEQ (recur x) (recur y)
     Cas x cs    -> CAS (recur x) (over _2 recur <$> cs)
     Opr o       -> OPR (recur <$> o)
     Lit l       -> LIT l
