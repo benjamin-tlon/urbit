@@ -132,22 +132,3 @@ comToUruk = \case
 
 oleg :: Uruk p => Exp p () Void -> p
 oleg = comToUruk . snd . ski . expDeb
-
-{-
-instance IsString (Exp p () String)
- where
-  fromString = Var
-
-l :: Eq a => a -> Exp p () a -> Exp p () a
-l nm = Lam () . Bound.abstract1 nm
-
-try :: Exp p () String -> Deb p
-try = expDeb . resolve
- where
-  resolve :: Exp p () String -> (Exp p () Void)
-  resolve = fromRight . traverse (Left . ("unbound variable: " <>))
-
-  fromRight :: Either String b -> b
-  fromRight (Left err) = error err
-  fromRight (Right vl) = vl
--}
