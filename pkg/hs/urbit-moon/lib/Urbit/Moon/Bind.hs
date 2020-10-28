@@ -19,19 +19,29 @@ type Bind = (Text, [Text], AST)
 
 -- Utils -----------------------------------------------------------------------
 
-mkLet :: Eq a => [(a,Exp a)] -> Exp a -> Exp a
-mkLet [] b = b
-mkLet bs b = Let (bs <&> abstr . snd) (abstr b)
+mkRec :: Eq a => [(a,Exp a)] -> Exp a -> Exp a
+mkRec [] b = b
+mkRec bs b = Rec (bs <&> abstr . snd) (abstr b)
  where
   abstr = abstract (`elemIndex` map (view _1) bs)
 
-letBinds :: [Bind] -> AST -> Exp Text
-letBinds bs x = mkLet (go <$> bs) (bind x)
+mkLet :: Eq a => [(a, Exp a)] -> Exp a -> Exp a
+mkLet [] b = b
+mkLet bs b = Let (snd <$> bs) (abstr b)
+ where
+  abstr = abstract (`elemIndex` map fst bs)
+
+recBinds :: [Bind] -> AST -> Exp Text
+recBinds bs x = mkRec (go <$> bs) (bind x)
  where
   go (n, rs, b) = (n, bind (lam rs b))
 
   lam []     b = b
   lam (n:ns) b = LAM n (lam ns b)
+
+letBinds :: [(Text, AST)] -> AST -> Exp Text
+letBinds bs x = mkLet (over _2 bind <$> bs) (bind x)
+
 
 
 -- Bind Names ------------------------------------------------------------------
@@ -44,6 +54,7 @@ bind = go
     APP x y            -> App (go x) (go y)
     LAM v b            -> Lam (abstract1 v (go b))
     LET bs x           -> letBinds bs x
+    REC bs x           -> recBinds bs x
     CON ns n xs        -> Con ns n (go <$> xs)
     PAT x pats         -> Pat (go x) $ pats <&> \(vs, b) ->
                             ( fromIntegral $ length vs
@@ -72,7 +83,8 @@ unbind = go allVars id
     Lam b       -> LAM v (recurIn1 b)
     Var x       -> VAR (f x)
     App x y     -> APP (recur x) (recur y)
-    Let ls b    -> LET (goBinds ls) (recurInN b)
+    Rec ls b    -> REC (goBinds ls) (recurInN b)
+    Let ls b    -> LET (goBiVls ls) (recurInN b)
     Con ns n xs -> CON ns n (recur <$> xs)
     Pat x bs    -> PAT (recur x) (goPat <$> bs)
     Seq x y     -> SEQ (recur x) (recur y)
@@ -95,6 +107,9 @@ unbind = go allVars id
     goPat :: (Int, Scope Int Exp a) -> ([Text], AST)
     goPat (n, sc) = (,) (mappend v . tshow @Int <$> [0 .. n-1])
                         (recurInN sc)
+
+    goBiVls :: [Exp a] -> [(Text, AST)]
+    goBiVls = zipWith (\i b -> (v <> tshow @Int i, recur b)) [0..]
 
     goBinds :: [Scope Int Exp a] -> [Bind]
     goBinds = zipWith (\i b -> (v <> tshow @Int i, [], recurInN b)) [0..]

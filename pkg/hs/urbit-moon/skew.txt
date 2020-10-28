@@ -1,0 +1,46 @@
+A noun is either an atom, a cell, or a jet. An atom is a natural number. An cell
+is an ordered pair of nouns. A jet `{n t b}` has the same value as the
+code that constructs it: `(3 n t b).
+
+Evaluate by applying `skew` repeatedly until no rules match.
+
+skew(a)                   *a
+a  bc                     ((a b) c)
+
+*:
+  x                       #x
+  xy                      (*x)(*y)
+
+#:
+      {n t b} x[1] .. x[n]    b x[1] .. x[n]
+
+  0 x y z                 x z (y z)
+  1 x y                   x
+  2 x                     x
+  3 a b c                 a (b c)
+  4 a b c                 a c b
+
+  5 x y                   5 #x y
+  5 x y                   y
+
+  6 n     t     b         6 *n *t *b
+  6 0     t     b         10 10
+  6 (x y) t     b         10 10
+  6 n     (x y) b         10 10
+  6 n     t     b         {n t b}
+
+  7 c a x                 7 c a #x
+  7 c a (x y)             c x y
+  7 c a x                 a x
+
+  8 x                     8 #x
+  8 (f g)                 10 10
+  8 n                     (n+1)
+
+  9 f z x                 9 f z #x
+  9 f z (x y)             10 10
+  9 f z 0                 z
+  9 f z n                 9 f (f z) (n-1)
+
+  f g x                   #(f g) x
+  n x | n>9               10 10

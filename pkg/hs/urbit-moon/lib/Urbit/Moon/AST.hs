@@ -26,7 +26,8 @@ data AST
   = VAR Text
   | APP AST AST
   | LAM Text AST
-  | LET [(Text, [Text], AST)] AST
+  | LET [(Text, AST)] AST
+  | REC [(Text, [Text], AST)] AST
   | CON [Int] Int [AST]
   | PAT AST [([Text], AST)]
   | SEQ AST AST
@@ -79,7 +80,7 @@ astExample :: AST
 astExample = modulE bindsEx
 
 modulE :: [Bind] -> AST
-modulE bs = LET bs $ tup $ fmap (VAR . view _1) bs
+modulE bs = REC bs $ tup $ fmap (VAR . view _1) bs
 
 numsEx :: [Atom]
 numsEx =
@@ -141,9 +142,9 @@ astRune = go
     APP f x          -> appRune (go <$> appSeq f x)
     LAM v b          -> lam (lamSeq v b)
     LET []         x -> go x
-    LET [(n,[],v)] x -> R.RunC "=/" [R.Leaf n, go v, go x]
-    LET [(n,xs,v)] x -> R.RunC "=/" [paren (n:xs), go v, go x]
-    LET bs         x -> R.Cor1 "|^" (go x) (bin <$> bs)
+    LET bs x         -> R.Cor1 "=/" (go x) (binV <$> bs)
+    REC []         x -> go x
+    REC bs         x -> R.Cor1 "|^" (go x) (bin <$> bs)
     CON [_] 0 xs     -> tupRune xs
     CON ns  i xs     -> R.Mode (R.IFix "%(" ")" par) (R.RunC "%%" par)
                          where
@@ -158,6 +159,8 @@ astRune = go
                           (fromMaybe "_" (R.toRunic <$> v), go b)
     VEC xs           -> R.Mode (R.IFix "#[" "]" (go <$> xs))
                                (R.RunN ":#" (go <$> xs))
+
+  binV (n,v) = (R.Leaf n, go v)
 
   bin = \case
     (,,) n [] v -> (R.Leaf n, go v)

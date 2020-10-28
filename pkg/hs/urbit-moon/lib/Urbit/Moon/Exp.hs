@@ -17,7 +17,8 @@ data Exp a
   = Var a
   | App (Exp a) (Exp a)
   | Lam (Scope () Exp a)
-  | Let [Scope Int Exp a] (Scope Int Exp a)
+  | Let [Exp a] (Scope Int Exp a)
+  | Rec [Scope Int Exp a] (Scope Int Exp a)
   | Con [Int] Int [Exp a]
   | Pat (Exp a) [(Int, Scope Int Exp a)]
   | Seq (Exp a) (Exp a)
@@ -45,7 +46,8 @@ instance Monad Exp where
 
   Var a      >>= f = f a
   Lam b      >>= f = Lam (b >>>= f)
-  Let x b    >>= f = Let ((>>>= f) <$> x) (b >>>= f)
+  Let x b    >>= f = Let ((>>= f) <$> x) (b >>>= f)
+  Rec x b    >>= f = Rec ((>>>= f) <$> x) (b >>>= f)
   App x y    >>= f = App (x >>= f) (y >>= f)
   Con ns n x >>= f = Con ns n ((>>= f) <$> x)
   Pat v p    >>= f = Pat (v >>= f) (over _2 (>>>= f) <$> p)

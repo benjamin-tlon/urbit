@@ -91,7 +91,7 @@ lamUnwrap = go 0 F
 
 progExp :: Prog -> Exp Void
 progExp (Prog ps) =
-  Let (Scope . bindExp <$> ps)
+  Rec (Scope . bindExp <$> ps)
       (Scope $ Var $ B $ gloIdx "main")
  where
   gloIdx :: Text -> Int
@@ -139,26 +139,74 @@ casExp :: Exp a -> [(Maybe Atom, Exp a)] -> Exp a
 casExp = error "TODO: switch on atoms"
 
 expProg :: Exp Void -> Prog
-expProg top = Prog [("main", 1, go "main" id (absurd <$> top))]
+expProg =
+  \expr -> evalState (top expr) (Prog [])
+
  where
+  top :: Exp Void -> State Prog Prog
+  top expr = do
+    main <- go "main" id (absurd <$> expr)
+    Prog ps <- get
+    pure (Prog (("main", 0, main) : ps))
+
+  stripEmptyScope :: Scope Int Exp a -> Exp a
+  stripEmptyScope = fmap (unvar (error "ref into empty scope") id) . fromScope
+
   go :: (Show a, Eq a)
-     => Text -> (Text -> a) -> Exp (Var Int a) -> CAF (Var Int a)
+     => Text -> (Text -> a) -> Exp (Var Int a) -> State Prog (CAF (Var Int a))
   go c f = \case
-    Var v     -> CVar v
-    App x y   -> CApp (go c f x) (go c f y)
+    Var v     -> pure (CVar v)
+    App x y   -> CApp <$> go c f x <*> go c f y
     Con s n x -> go c f (conExp s n x)
     Pat x ps  -> go c f (patExp x ps)
-    Seq x y   -> CSeq (go c f x) (go c f y)
-    Lit l     -> CLit l
+    Seq x y   -> CSeq <$> go c f x <*> go c f y
+    Lit l     -> pure (CLit l)
     Cas x cs  -> go c f (casExp x cs)
-    Vec xs    -> CVec (go c f <$> xs)
-    Opr o     -> COpr (go c f <$> o)
-    Let vs b  -> error "TODO: LET" vs b
-    Lam b     -> cafApp
-                   (CVar $ F $ f $ cafNam c arg $ go c id $ fmap B bod)
-                   (CVar <$> fre)
+    Vec xs    -> CVec <$> traverse (go c f) xs
+    Opr o     -> COpr <$> traverse (go c f) o
+    Let [] b  -> go c f (stripEmptyScope b)
+    Let vs b  -> go c f (Pat (Con [length vs] 0 vs) [(length vs, b)])
+    Rec [] b  -> go c f (stripEmptyScope b)
+    Rec vs b  -> error "TODO: REC" vs b
+    Lam b     -> do vl <- go c id (B <$> bod)
+                    nm <- cafNam c arg vl
+                    pure $ cafApp (CVar $ F $ f nm) (CVar <$> fre)
      where
       (bod, fre, arg) = liftLam (Lam b)
+
+{-
+Handling `REC`:
+
+1.  If there are no bindings,
+
+    - Strip off the `Scope` by crashing on any bound references.
+    - Recurse into the body.
+
+2.  Find all bindings that don't reference any other bindings.
+
+    -   If there are none, fallthrough
+    -   If there are some, create an enclosing `LET` binding that
+        contains those
+    -   It's body will be the `REC` expression without those bindings.
+        -   Update all references: If they point to the lifted bindings,
+            left them.
+        -   Update all references: If they point to the unlifted ones,
+            renumber them.
+    -   recurse into the LET binding.
+
+3.  If we got this far, then there is a cycle.
+
+    -   Find the cycle that doesn't reference any bindings outside of
+        the cycle.
+    -   Create an open-recursive version of each element of the cycle.
+    -   Create a gadget for each element of the cycle:
+        -   `fix` if the cycle has size one.
+        -   `fixN` if the cycle has multiple values.
+    -   Replace each binding with an invokation of the appropriate
+        gadget.
+    -   Encode this as a `LET` expression.
+    -   Recurse
+-}
 
 {-
   Let's say that we just blindly lift all bindings. Is that actually easy?
@@ -461,8 +509,12 @@ expProg top = Prog [("main", 1, go "main" id (absurd <$> top))]
 
   This should create a new global function and return a reference to it.
 -}
-cafNam :: Text -> Int -> CAF (Var Int Text) -> Text
-cafNam ctxName numArgs _body = ctxName <> "-" <> tshow numArgs
+cafNam :: Text -> Int -> CAF (Var Int Text) -> State Prog Text
+cafNam ctxName numArgs body = do
+  let nm = ctxName <> "-" <> tshow numArgs
+  Prog ps <- get
+  put $ Prog $ (nm, numArgs, body) : ps
+  pure nm
 
 cafApp :: CAF a -> [CAF a] -> CAF a
 cafApp x []     = x

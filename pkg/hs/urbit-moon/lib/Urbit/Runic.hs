@@ -76,7 +76,7 @@ wide = go
 tall ∷ Runic → Text
 tall = go 0
   where
-    go d (wide -> t) | length t < 40 = line d t
+    go d (wide -> t) | length t < 60 = line d t
     go d v                           = ta d v
 
     indent d t = replicate d ' ' <> t
@@ -170,8 +170,8 @@ appRune :: [Runic] -> Runic
 appRune xs = Mode wid tal
  where
   wid = IFix "(" ")" xs
-  tal = case length xs of
-          2 -> RunC "%-" xs
-          3 -> RunC "%+" xs
-          4 -> RunC "%^" xs
+  tal = case xs of
+          []  -> Leaf "()"
+          [x] -> x
+          [x,y] -> RunC "%-" [x,y]
           _ -> RunN "%*" xs

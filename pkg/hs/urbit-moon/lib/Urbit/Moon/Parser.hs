@@ -70,7 +70,7 @@ alphaChar = ['a'..'z'] <> ['A'..'Z']
 alpha ∷ Parser Char
 alpha = oneOf alphaChar
 
-symChar = oneOf (['-'] ++ alphaChar ++ ['0'..'9'])
+symChar = oneOf (['-'] <> alphaChar <> ['0'..'9'])
 
 sym ∷ Parser Sym
 sym = (pack <$> ((:) <$> alpha <*> many symChar))
@@ -276,6 +276,10 @@ runeJogging node a b = node <$> parseRune tall wide
   where
     tall = gap *> many ((,) <$> (a <* gap) <*> (b <* gap)) <* string "=="
     wide = grouped "(" ", " ")" ((,) <$> (a <* ace) <*> b)
+
+sym ∷ Parser Sym
+sym = (pack <$> ((:) <$> alpha <*> many symChar))
+  <|> string "$"
 
 runeJogging1 :: (a -> [(b, c)] -> r)
              -> Parser a -> Parser b -> Parser c -> Parser r
