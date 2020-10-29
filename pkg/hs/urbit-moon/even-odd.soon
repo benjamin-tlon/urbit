@@ -1,0 +1,14 @@
+|^  ($cons $even $odd)
+::
+++  (cons fst snd kal)  (kal fst snd)
+::
+++  (even n)  ($fold-nat $not $ya n)
+++  (odd n)   ($fold-nat $not $na n)
+::
+++  fold-nat  9
+::
+++  (bool ya na bit)  (bit ya na)
+++  (ya t f)          t
+++  (na t f)          f
+++  (not b)           ($bool $na $ya b)
+==

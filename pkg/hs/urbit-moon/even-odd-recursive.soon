@@ -1,0 +1,73 @@
+|^  ($cons $odd $even)
+
+  ++  (bool t f c)  (c t f)
+  ++  (ya t f)      t
+  ++  (na t f)      f
+
+  ++  compose   3
+  ++  incr      8
+  ++  fold-nat  9
+
+  ++  none
+    ~/  none
+    |=  (n s)
+    n
+
+  ++  some
+    ~/  some
+    |=  (x n s)
+    (s x)
+
+  ++  option
+    ~/  option
+    |=  (n s o)
+    (o n s)
+
+  ++  decr
+    ~/  decr
+    |=  (n)
+    %*  $fold-nat
+      ($option ($some 0) ($compose $some $incr))
+      $none
+      n
+    ==
+
+  ++  (either f g x)  (x f g)
+  ++  (cons x y f)    (f x y)
+
+  ++  (w2 f x y)  (f x y)
+
+  ++  fix
+    %-  (6 2 %fix)
+    %-  (0 2)
+    %*  $w2
+      ((0 (1 ((0 (1 (6 2 %fix))) (0 2)))) ((0 $w2) 2))
+      ((0 (1 ((0 (1 (6 2 %fix))) (0 2)))) ((0 $w2) 2))
+    ==
+
+  ++  (odd-loop even odd n)
+    %*  $option
+      $na
+      even
+      ($decr n)
+    ==
+
+  ++  (even-loop even odd n)
+    %*  $option
+      $ya
+      odd
+      ($decr n)
+    ==
+
+  ++  (fix2-knot lef rit rec)
+    %*  $bool
+      (lef (rec $ya) (rec $na))
+      (rit (rec $ya) (rec $na))
+    ==
+
+  ++  (fix2 lef rit flag val)
+    ($fix ($fix2-knot lef rit) flag val)
+
+  ++  (even x)  ($fix2 $even-loop $odd-loop $ya x)
+  ++  (odd x)   ($fix2 $even-loop $odd-loop $na x)
+==

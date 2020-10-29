@@ -1,0 +1,72 @@
+|^  $fib
+::
+++  const         1
+++  compose       3
+++  incr          8
+++  fold-nat      9
+++  (ignore x y)  y
+::
+::  TODO enforce types by checking bool-ness of `c`
+::
+::  data Bool = Ya | Na
+::
+++  (bool ya na bit)  (bit ya na)
+++  (ya t f)          t
+++  (na t f)          f
+++  (not b)           ($bool $na $ya b)
+::
+::  data Option a = None | Some a
+::
+++  (none non som)        non
+++  (some x non som)      (som x)
+++  (option non som opt)  (opt non som)
+::
+::  data Cons a b = Cons { car :: a, cdr :: b}
+::
+++  (cons fst snd kal)  (kal fst snd)
+++  (uncons f pair)     (pair f)
+++  (car x)             ($uncons $const x)
+++  (cdr x)             ($uncons $ignore x)
+::
+::  Operations on Atoms
+::
+++  (add x y)
+  (9 8 x y)
+::
+++  (decr n)
+  %*  $fold-nat
+    ($option ($some 0) ($compose $some $incr))
+    $none
+    n
+  ==
+::
+::  Recursive `fib`.
+::
+++  (w2 f x y)  (f x y)
+::
+++  fix
+  %-  (6 2 %fix)
+  %-  (0 2)
+  %*  $w2
+    ((0 (1 ((0 (1 (6 2 %fix))) (0 2)))) ((0 $w2) 2))
+    ((0 (1 ((0 (1 (6 2 %fix))) (0 2)))) ((0 $w2) 2))
+  ==
+::
+++  (fib-case2 fib n-1 n-2)
+  ($add (fib n-1) (fib n-2))
+::
+++  (fib-case1 fib n-1)
+  %*  $option
+    1
+    ($fib-case2 fib n-1)
+    ($decr n-1)
+  ==
+::
+++  (fib-rec fib n)
+  %+  ($decr n)
+    0
+  ($fib-case1 fib)
+::
+++  (fib n)  ($fix $fib-rec n)
+::
+==
