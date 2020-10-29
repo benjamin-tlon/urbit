@@ -87,3 +87,16 @@ default-extensions:
   - UnboxedTuples
   - UnicodeSyntax
   - ViewPatterns
+
+executables:
+  urbit-soon:
+    main: Main.hs
+    source-dirs: app/soon
+    dependencies:
+      - urbit-moon
+    ghc-options:
+      - -threaded
+      - -rtsopts
+      - -static
+      - -O2
+      - "-with-rtsopts=-N"
